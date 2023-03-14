@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neon-compute
+  labels:
+    app: neon-compute
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: neon-compute
+  template:
+    metadata:
+      labels:
+        app: neon-compute
+    spec:
+      containers:
+        - name: compute
+          image: perconalab/neon:latest
+          command: ["/compute.sh"]
+          env:
+            - name: PAGESERVER
+              value: pageserver.default.svc.cluster.local
+            - name: SAFEKEEPERS
+              value: safekeepers.default.svc.cluster.local
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neon-compute
+spec:
+  selector:
+    app.kubernetes.io/name: neon-compute
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 55432
+---

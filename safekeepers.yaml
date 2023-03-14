@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: safekeeper-vol
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: safekeeper-deployment
+  labels:
+    app: neon-safekeeper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neon-safekeeper
+  template:
+    metadata:
+      labels:
+        app: neon-safekeeper
+    spec:
+      containers:
+        - name: safekeeper
+          image: perconalab/neon:latest
+          command: ["safekeeper"]
+          args: ["-D", "/data", "--broker-endpoint", "http://storage-broker.default.svc.cluster.local", "-l", "0.0.0.0:5454", "--listen-http", "0.0.0.0:7676", "--id", "1"]
+          volumeMounts:
+            - mountPath: "/data"
+              name: safekeeper-data
+      volumes:
+        - name: safekeeper-data
+          persistentVolumeClaim:
+            claimName: safekeeper-vol
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: safekeepers
+spec:
+  selector:
+    app.kubernetes.io/name: neon-safekeeper
+  ports:
+    - protocol: TCP
+      name: pg-port
+      port: 5454
+      targetPort: 5454
+    - protocol: TCP
+      name: http-port
+      port: 7676
+      targetPort: 7676
+---
