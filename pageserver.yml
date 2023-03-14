@@ -30,8 +30,9 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pageserver-deployment
+  name: neon-pageserver
   labels:
+    app.kubernetes.io/name: neon-pageserver
     app: neon-pageserver
 spec:
   replicas: 1
@@ -41,6 +42,7 @@ spec:
   template:
     metadata:
       labels:
+        app.kubernetes.io/name: neon-pageserver
         app: neon-pageserver
     spec:
       containers:
@@ -48,6 +50,9 @@ spec:
           image: perconalab/neon:latest
           command: ["pageserver"]
           args: ["-D", "/data", "-c", "broker_endpoint='http://storage-broker.default.svc.cluster.local'", "-c", "listen_pg_addr='0.0.0.0:6400'", "-c", "listen_http_addr='0.0.0.0:9898'", "-c", "id=1", "-c", "pg_distrib_dir='/opt/neondatabase-neon/pg_install'"]
+          ports:
+            - containerPort: 9898
+            - containerPort: 6400
           volumeMounts:
             - mountPath: "/data"
               name: pageserver-data

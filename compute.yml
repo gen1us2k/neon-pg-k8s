@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: neon-compute
   labels:
+    app.kubernetes.io/name: neon-compute
     app: neon-compute
 spec:
   replicas: 5
@@ -12,23 +13,27 @@ spec:
   template:
     metadata:
       labels:
+        app.kubernetes.io/name: neon-compute
         app: neon-compute
     spec:
       containers:
         - name: compute
           image: perconalab/neon:latest
           command: ["/compute.sh"]
+          ports:
+            - containerPort: 55432
           env:
             - name: PAGESERVER
               value: pageserver.default.svc.cluster.local
             - name: SAFEKEEPERS
-              value: safekeepers.default.svc.cluster.local
+              value: safekeepers.default.svc.cluster.local:5454
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: neon-compute
 spec:
+  type: LoadBalancer
   selector:
     app.kubernetes.io/name: neon-compute
   ports:
@@ -36,3 +41,21 @@ spec:
       port: 5432
       targetPort: 55432
 ---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: neon-compute
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: neon-compute
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
