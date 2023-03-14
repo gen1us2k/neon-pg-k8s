@@ -1,44 +1,4 @@
 apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: safekeeper-vol
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 8Gi
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: safekeeper-deployment
-  labels:
-    app: neon-safekeeper
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: neon-safekeeper
-  template:
-    metadata:
-      labels:
-        app: neon-safekeeper
-    spec:
-      containers:
-        - name: safekeeper
-          image: perconalab/neon:latest
-          command: ["safekeeper"]
-          args: ["-D", "/data", "--broker-endpoint", "http://storage-broker.default.svc.cluster.local", "-l", "0.0.0.0:5454", "--listen-http", "0.0.0.0:7676", "--id", "1"]
-          volumeMounts:
-            - mountPath: "/data"
-              name: safekeeper-data
-      volumes:
-        - name: safekeeper-data
-          persistentVolumeClaim:
-            claimName: safekeeper-vol
----
-apiVersion: v1
 kind: Service
 metadata:
   name: safekeepers
@@ -55,3 +15,54 @@ spec:
       port: 7676
       targetPort: 7676
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: safekeeper-vol
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: safekeeper
+  labels:
+    app: neon-safekeeper
+spec:
+  serviceName: safekeepers
+  replicas: 3
+  selector:
+    matchLabels:
+      app: neon-safekeeper
+  template:
+    metadata:
+      labels:
+        app: neon-safekeeper
+    spec:
+      containers:
+        - name: safekeeper
+          image: perconalab/neon:latest
+          env:
+            - name: pod_id
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          command:
+            - "bash"
+            - "-c"
+            - |
+              export SAFEKEEPER_ID=$((${pod_id##*-}+1))
+              echo $SAFEKEEPER_ID
+              mkdir /data/$SAFEKEEPER_ID
+              safekeeper -D /data/$SAFEKEEPER_ID --broker-endpoint http://storage-broker.default.svc.cluster.local -l 0.0.0.0:5454 --listen-http 0.0.0.0:7676 --id $SAFEKEEPER_ID
+          volumeMounts:
+            - mountPath: "/data"
+              name: safekeeper-data
+      volumes:
+        - name: safekeeper-data
+          persistentVolumeClaim:
+            claimName: safekeeper-vol
